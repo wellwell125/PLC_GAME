@@ -8,6 +8,11 @@ maker = 'KEYENCE'
 ip = '192.168.0.10'
 port = 8501
 
+io_input_type = "R"
+io_input_no = "1000"
+io_output_type = "R"
+io_output_no = "5000"
+
 def get_plc_comm_command(plc_input_list = []):
     command = ''
     send_data = ''
@@ -18,12 +23,12 @@ def get_plc_comm_command(plc_input_list = []):
                 send_data += plc_input_list[15-i]
 
             send_data = int(send_data,2)      
-            command = "WRS R1000.U 1 " + str(send_data) + "\r"
+            command = "WRS " + io_input_type + io_input_no + ".U 1 " + str(send_data) + "\r"
             command = command.encode("ascii")
 
 
         else:
-            command = "RDS R5000.U 1\r"
+            command = "RDS " + io_output_type + io_output_no + ".U 1\r"
             command = command.encode("ascii")
 
             
@@ -72,7 +77,8 @@ def main():
     pygame.init()
     pygame.display.set_caption("PLC GAME") 
     img_base = pygame.image.load("base.png")
-    screen = pygame.display.set_mode((img_base.get_width(),img_base.get_height()))
+    img_plc_input = pygame.image.load("io.png")
+    screen = pygame.display.set_mode((img_base.get_width() + img_plc_input.get_width(),img_plc_input.get_height()))
 
     clock = pygame.time.Clock()
     
@@ -202,7 +208,60 @@ def main():
         
         screen.fill((255,255,255))
         screen.blit(img_base,(0,0))
+        screen.blit(img_plc_input,(img_base.get_width(),0))
 
+        pos_x_plc_input = img_base.get_width() + 129
+        pos_y_plc_input = 18
+        width_plc_input = 37
+
+        input_x1 = pos_x_plc_input
+        input_x2 = pos_x_plc_input + width_plc_input
+            
+        for i in range(16):
+            if plc_input_list[i] == '1':
+                input_color = (255,0,0)
+            else:
+                input_color = (0,0,0)
+                
+            if i != 9:
+                input_y1 = pos_y_plc_input + i * 32
+                input_y2 = input_y1
+                    
+                if plc_input_list[i] == '0':
+                    input_y1 -= 4
+                    input_y2 = input_y1
+            else:
+                input_y1 = pos_y_plc_input + i * 32 + 12
+                input_y2 = input_y1
+                    
+                if plc_input_list[i] == '0':
+                    input_y1 += 4
+                    input_y2 = input_y1
+            
+            pygame.draw.line(screen, input_color, (input_x1,input_y1), (input_x2,input_y2), 3)
+  
+            y_text = pos_y_plc_input + i * 32 - 2
+            text_input = io_input_type + str(int(io_input_no) + i)
+            text = plc_font.render(text_input, True, input_color)
+            screen.blit(text,(input_x2 + 60,y_text))
+
+
+            if i <= 13:
+                if plc_output_list[i] == '1':
+                    output_color = (255,0,0)
+                    output_text_color = (255,0,0)
+                else:
+                    output_color = (255,255,255)
+                    output_text_color = (0,0,0)
+
+                x_coil = img_base.get_width() + 479
+                y_coil = 26 + i * 32
+                pygame.draw.circle(screen,output_color,(x_coil,y_coil),12) 
+
+                text_output = io_output_type + str(int(io_output_no) + i)
+                text = plc_font.render(text_output, True, output_text_color)
+                screen.blit(text,(input_x2 + 174,y_text))
+        
 
         #------------------------------------------------------------------------------------------------
         #ワーク状態 変化 --------------------------------------------------------------------------------
@@ -363,12 +422,14 @@ def main():
 
         #DPL1 - DPL2
         dpl1_no = int(plc_output_list[9] + plc_output_list[8] + plc_output_list[7] + plc_output_list[6],2)
-        dpl1_text = dpl_font.render(str(dpl1_no), True, (255,0,0))
-        screen.blit(dpl1_text,dpl1_pos)
+        if dpl1_no <= 9:
+            dpl1_text = dpl_font.render(str(dpl1_no), True, (255,0,0))
+            screen.blit(dpl1_text,dpl1_pos)
 
         dpl2_no = int(plc_output_list[13] + plc_output_list[12] + plc_output_list[11] + plc_output_list[10],2)
-        dpl2_text = dpl_font.render(str(dpl2_no), True, (255,0,0))
-        screen.blit(dpl2_text,dpl2_pos)
+        if dpl2_no <= 9:
+            dpl2_text = dpl_font.render(str(dpl2_no), True, (255,0,0))
+            screen.blit(dpl2_text,dpl2_pos)
 
 
 
