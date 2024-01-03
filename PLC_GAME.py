@@ -7,18 +7,27 @@ import tkinter.messagebox as messagebox
 maker = 'KEYENCE'
 ip = '192.168.0.10'
 port = 8501
-
 io_input_type = "R"
 io_input_no = "1000"
 io_output_type = "R"
 io_output_no = "5000"
+
+
+maker = 'MITSUBISHI'
+ip = '192.168.0.10'
+port = 5000
+io_input_type = "X"
+io_input_no = "A0"
+io_output_type = "Y"
+io_output_no = "320"
+
 
 def get_plc_comm_command(plc_input_list = []):
     command = ''
     send_data = ''
 
     if maker == 'KEYENCE':
-        if len(plc_input_list) >= 16:
+        if len(plc_input_list) >= 16:   #Write
             for i in range(16):
                 send_data += plc_input_list[15-i]
 
@@ -27,13 +36,52 @@ def get_plc_comm_command(plc_input_list = []):
             command = command.encode("ascii")
 
 
-        else:
+        else:                           #Read
             command = "RDS " + io_output_type + io_output_no + ".U 1\r"
             command = command.encode("ascii")
 
+
+    elif maker == 'MITSUBISHI':
+        command = "5000"    #subheader
+        command += "00"     #net
+        command += "FF"     #pc
+        command += "03FF"   #unitio
+        command += "00"     #unitno
+
             
+        if len(plc_input_list) >= 16:   #Write
+            for i in range(16):
+                send_data += plc_input_list[15-i]
+
+            send_data = int(send_data,2)
+            send_data = hex(send_data).replace("0x","")
+            send_data = send_data.zfill(4)
+            
+            command += "001c"   #nlen
+            command += "0020"   #cputimer
+            command += "1401"   #command
+            command += "0000"   #subcommand
+            command += io_input_type + "*" + io_input_no.zfill(6)
+            command += "0001"   #number
+            command += send_data
+            
+            command = command.encode("ascii")
+
+
+        else:                           #Read
+            command += "0018"   #nlen
+            command += "0020"   #cputimer
+            command += "0401"   #command
+            command += "0000"   #subcommand
+            command += io_output_type + "*" + io_output_no.zfill(6)
+            command += "0001"   #number
+
+            command = command.encode("ascii")
+            #print(command)
 
     return command
+
+
 
 def get_plc_output(plc_output_list,response):
 
@@ -46,7 +94,28 @@ def get_plc_output(plc_output_list,response):
         for i in range(16):
             plc_output_list[i] = plc_output[15-i:16-i]
 
-    
+
+    elif maker == 'MITSUBISHI':
+        response = response.decode("UTF-8")
+
+        response_net = response[4:6]
+        response_pc = response[6:8]
+        response_unitio = response[8:12]
+        response_unitno = response[12:14]
+        response_length = response[14:18]
+        response_code = response[18:22]
+
+        response_data = response[22:]
+
+        #print(response)
+        #print(response_data)
+
+        response_data = bin(int(response_data))
+        plc_output = response_data.zfill(16)
+
+        for i in range(16):
+            plc_output_list[i] = plc_output[15-i:16-i]
+        
 
 class Sprite(pygame.sprite.Sprite):
 
@@ -72,7 +141,7 @@ class Sprite(pygame.sprite.Sprite):
         colorkey = self.image.get_at((0,0))
         self.image.set_colorkey(colorkey, RLEACCEL)
 
-        
+
 def main():
     pygame.init()
     pygame.display.set_caption("PLC GAME") 
@@ -210,6 +279,17 @@ def main():
         screen.blit(img_base,(0,0))
         screen.blit(img_plc_input,(img_base.get_width(),0))
 
+
+        #------------------------------------------------------------------------------------------------
+        #PLC IO -----------------------------------------------------------------------------------------
+        #------------------------------------------------------------------------------------------------
+
+        if maker == 'KEYENCE':
+            is_io_output_hex = False
+        elif maker == 'MITSUBISHI':
+            is_io_output_hex = True
+            
+        
         pos_x_plc_input = img_base.get_width() + 129
         pos_y_plc_input = 18
         width_plc_input = 37
@@ -239,11 +319,20 @@ def main():
                     input_y2 = input_y1
             
             pygame.draw.line(screen, input_color, (input_x1,input_y1), (input_x2,input_y2), 3)
-  
+
             y_text = pos_y_plc_input + i * 32 - 2
-            text_input = io_input_type + str(int(io_input_no) + i)
+
+            if is_io_output_hex == False:
+                text_input = io_input_type + str(int(io_input_no) + i)
+            else:
+                io = hex(int(io_input_no,16) + i).replace("0x","").zfill(4)
+                io = io.upper()
+                text_input = io_input_type + str(io)
+                
             text = plc_font.render(text_input, True, input_color)
             screen.blit(text,(input_x2 + 60,y_text))
+
+
 
 
             if i <= 13:
@@ -258,7 +347,13 @@ def main():
                 y_coil = 26 + i * 32
                 pygame.draw.circle(screen,output_color,(x_coil,y_coil),12) 
 
-                text_output = io_output_type + str(int(io_output_no) + i)
+                if is_io_output_hex == False:
+                    text_output = io_output_type + str(int(io_output_no) + i)
+                else:
+                    io = hex(int(io_output_no,16) + i).replace("0x","").zfill(4)
+                    io = io.upper()
+                    text_output = io_output_type + str(io)
+                    
                 text = plc_font.render(text_output, True, output_text_color)
                 screen.blit(text,(input_x2 + 174,y_text))
         
@@ -292,6 +387,35 @@ def main():
         #説明描画 ---------------------------------------------------------------------------------------
         #------------------------------------------------------------------------------------------------
 
+        pos_y = 5
+        text_content = 'Maker : '
+        text = font.render(text_content, True, (0,0,0))
+        screen.blit(text,(250,pos_y))
+        
+        text_content = maker
+        text = font.render(text_content, True, (0,0,0))
+        screen.blit(text,(300,pos_y))
+
+        pos_y += 15
+        text_content = 'IP : '
+        text = font.render(text_content, True, (0,0,0))
+        screen.blit(text,(270,pos_y))
+
+        text_content = ip
+        text = font.render(text_content, True, (0,0,0))
+        screen.blit(text,(300,pos_y))
+
+        pos_y += 15
+        text_content = 'PORT : '
+        text = font.render(text_content, True, (0,0,0))
+        screen.blit(text,(252,pos_y))
+
+        text_content = str(port)
+        text = font.render(text_content, True, (0,0,0))
+        screen.blit(text,(300,pos_y))
+
+
+        
         pos_y = 5
         text_content = ' F1  : ボルト1'
         text = font.render(text_content, True, (0,0,0))
